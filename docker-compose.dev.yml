@@ -8,7 +8,6 @@ services:
       - "${WEB_PORT}:5119"
     volumes:
       - .:/src/
-      - ./seed:/src/AIMS/seed:ro
       - aims_bin:/src/AIMS/bin
       - aims_obj:/src/AIMS/obj
     environment:
@@ -25,35 +24,29 @@ services:
       ConnectionStrings__Default: "Server=${SQL_HOST},${SQL_PORT};Database=${SQL_DB};User Id=${SQL_USER};Password=${SQL_PASSWORD};TrustServerCertificate=True;Encrypt=False"
       ConnectionStrings__DockerConnection: "Server=${SQL_HOST},${SQL_PORT};Database=${SQL_DB};User Id=${SQL_USER};Password=${SQL_PASSWORD};TrustServerCertificate=True;Encrypt=False"
 
-      # --- Azure AD (new AIMS__ keys) ---
-      AIMS__AzureAd__Instance: "${AIMS__AzureAd__Instance}"
-      AIMS__AzureAd__TenantId: "${AIMS__AzureAd__TenantId}"
-      AIMS__AzureAd__ClientId: "${AIMS__AzureAd__ClientId}"
-      AIMS__AzureAd__CallbackPath: "${AIMS__AzureAd__CallbackPath}"
+      # --- Azure AD IDs from .env ---
+      AzureAd__TenantId: ${AZUREAD_TENANT_ID}
+      AzureAd__ClientId: ${AZUREAD_CLIENT_ID}
 
-      # Secret loaded from Docker secret mount
-      AIMS__AzureAd__ClientSecretFile: "/src/AIMS/secrets/azuread_client_secret.txt"
+      # --- Secrets-first path ---
+      AzureAd__ClientSecretFile: ${AZUREAD_CLIENT_SECRET_FILE}
 
-      # --- Seeder controls ---
-      AIMS_SEED_MODE: ${AIMS_SEED_MODE:-basic}
-      AIMS_SEED_DIR: ${AIMS_SEED_DIR:-/src/seed}
-      AIMS_ALLOW_PROD_SEED: ${AIMS_ALLOW_PROD_SEED:-false}
+      # Seed toggle
+      AllowProdSeed: "${ALLOW_PROD_SEED}"
 
     secrets:
       - azuread_client_secret
-
     depends_on:
       sqlserver-dev:
         condition: service_healthy
-
     networks:
       - new-bridge-net
 
   sqlserver-dev:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    platform: linux/amd64
+    platform: linux/amd64                       # Rosetta-friendly on Apple Silicon hosts
     ports:
-      - "${SQL_PORT_HOST}:${SQL_PORT}"          
+      - "${SQL_PORT_HOST}:${SQL_PORT}"          # e.g. 1433:1433
     environment:
       SA_PASSWORD: "${SQL_PASSWORD}"
       ACCEPT_EULA: "Y"
@@ -62,7 +55,7 @@ services:
       - mssql_data:/var/opt/mssql
       - ./sql:/sql
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${SA_PASSWORD}\" -No -Q \"SELECT 1\" -C"]
+      test: [ "CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${SA_PASSWORD}\" -No -Q \"SELECT 1\" -C" ]
       interval: 5s
       timeout: 5s
       retries: 60
@@ -83,4 +76,3 @@ volumes:
   mssql_data:
   aims_bin:
   aims_obj:
-
